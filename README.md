@@ -2,10 +2,11 @@
 
 A tool for creating 3DS banners.
 
-## How to build (Using Docker)
+## How to build
 
-```bash
-docker build -t bannertool-builder .
-docker run --name bannertool-builder bannertool-builder
-docker cp bannertool-builder:/bannertool/output/bannertool.zip .
+```shell
+cmake -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo # generate
+cmake --build build                              # building (optional)
+cmake --install build                            # local install (with building)
+cmake --build build --target package             # packaging (with building)
 ```

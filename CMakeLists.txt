@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.18)
 
 project(bannertool
-	VERSION 1.2.1
+	VERSION 1.2.2
 	LANGUAGES CXX C
 )
 
@@ -27,6 +27,14 @@ target_compile_definitions(stb_vorbis INTERFACE
 	STB_VORBIS_NO_PUSHDATA_API
 )
 
+add_library(dr_wav STATIC
+	source/pc/dr_wav.h
+	source/pc/dr_wav.c
+)
+target_compile_definitions(dr_wav INTERFACE
+	DR_WAV_NO_WCHAR
+)
+
 # executable
 
 add_executable(bannertool
@@ -42,8 +50,6 @@ add_executable(bannertool
 	source/3ds/lz11.cpp
 	source/3ds/lz11.h
 	source/3ds/smdh.h
-	source/pc/wav.cpp
-	source/pc/wav.h
 )
 target_compile_definitions(bannertool PRIVATE
 	VERSION_MAJOR=${PROJECT_VERSION_MAJOR}
@@ -54,7 +60,7 @@ target_compile_options(bannertool PRIVATE
 	-Wall
 	-Wno-unused-function
 )
-target_link_libraries(bannertool stb_image stb_vorbis)
+target_link_libraries(bannertool stb_image stb_vorbis dr_wav)
 
 # install
 
@@ -82,20 +88,29 @@ unset(PKG_FROM)
 unset(PKG_DIR)
 unset(PKG_TO)
 
-# update-stb
+# update-libs
 
-file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/download-stb.cmake
-    "file(DOWNLOAD
-    	https://github.com/nothings/stb/archive/refs/heads/master.zip
-    	${CMAKE_CURRENT_BINARY_DIR}/stb.zip)"
+file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/download-libs.cmake
+"
+file(REMOVE_RECURSE ${CMAKE_CURRENT_BINARY_DIR}/libs)
+file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/libs)
+file(DOWNLOAD
+	https://github.com/nothings/stb/raw/refs/heads/master/stb_image.h
+	${CMAKE_CURRENT_BINARY_DIR}/libs/stb_image.h)
+file(DOWNLOAD
+	https://github.com/nothings/stb/raw/refs/heads/master/stb_vorbis.c
+	${CMAKE_CURRENT_BINARY_DIR}/libs/stb_vorbis.c)
+file(DOWNLOAD
+	https://github.com/mackron/dr_libs/raw/refs/heads/master/dr_wav.h
+	${CMAKE_CURRENT_BINARY_DIR}/libs/dr_wav.h)
+file(INSTALL ${CMAKE_CURRENT_BINARY_DIR}/libs/
+	DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}/source/pc
+	FILES_MATCHING REGEX \"/*.(c|h)$\")
+"
 )
-add_custom_target(update-stb
-	COMMAND ${CMAKE_COMMAND} -P download-stb.cmake
-	COMMAND ${CMAKE_COMMAND} -E tar xf stb.zip
-	COMMAND ${CMAKE_COMMAND} -E copy
-		stb-master/stb_vorbis.c stb-master/stb_image.h
-		${CMAKE_CURRENT_SOURCE_DIR}/source/pc
+add_custom_target(update-libs
+	COMMAND ${CMAKE_COMMAND} -P download-libs.cmake
 	WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-	COMMENT "Updating STB libraries from GitHub..."
+	COMMENT "Updating external libraries from GitHub..."
 	VERBATIM
 )

@@ -7,7 +7,7 @@
 #include "3ds/smdh.h"
 #include "pc/stb_image.h"
 #include "pc/stb_vorbis.h"
-#include "pc/wav.h"
+#include "pc/dr_wav.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -193,7 +193,7 @@ static void* convert_to_cwav(u32* size, const std::string& file, bool loop, u32 
         return NULL;
     }
 
-    rewind(fd);
+    fclose(fd);
 
     CWAV cwav;
     memset(&cwav, 0, sizeof(cwav));
@@ -202,41 +202,23 @@ static void* convert_to_cwav(u32* size, const std::string& file, bool loop, u32 
     cwav.loopStartFrame = loopStartFrame;
     cwav.loopEndFrame = loopEndFrame;
 
-    if(memcmp(magic, "RIFF", sizeof(magic)) == 0) {
-        WAV* wav = wav_read(fd);
-        if(wav != NULL) {
-            cwav.channels = wav->format.numChannels;
-            cwav.sampleRate = wav->format.sampleRate;
-            cwav.bitsPerSample = wav->format.bitsPerSample;
-
-            cwav.dataSize = wav->data.size;
-            cwav.data = calloc(wav->data.size, sizeof(u8));
-            if(cwav.data != NULL) {
-                memcpy(cwav.data, wav->data.data, wav->data.size);
-            } else {
-                printf("ERROR: Could not allocate memory for CWAV sample data.\n");
-            }
-
-            wav_free(wav);
-        }
-    } else if(memcmp(magic, "OggS", sizeof(magic)) == 0) {
+    // First check OGG
+    if(memcmp(magic, "OggS", sizeof(magic)) == 0) {
         int error = 0;
-        stb_vorbis* vorbis = stb_vorbis_open_file(fd, false, &error, NULL);
+        stb_vorbis* vorbis = stb_vorbis_open_filename(file.c_str(), &error, NULL);
 
         if(vorbis != NULL) {
             stb_vorbis_info info = stb_vorbis_get_info(vorbis);
-            u32 sampleCount = stb_vorbis_stream_length_in_samples(vorbis) * info.channels;
+            unsigned int sampleCount = stb_vorbis_stream_length_in_samples(vorbis) * info.channels;
 
-            cwav.channels = (u32) info.channels;
+            cwav.channels = info.channels;
             cwav.sampleRate = info.sample_rate;
-            cwav.bitsPerSample = sizeof(u16) * 8;
-
-            cwav.dataSize = sampleCount * sizeof(u16);
-            cwav.data = calloc(sampleCount, sizeof(u16));
+            cwav.bitsPerSample = 16;
+            cwav.dataSize = sampleCount * sizeof(short);
+            cwav.data = malloc(cwav.dataSize);
             if(cwav.data != NULL) {
+                memset(cwav.data, 0, cwav.dataSize);
                 stb_vorbis_get_samples_short_interleaved(vorbis, info.channels, (short*) cwav.data, sampleCount);
-            } else {
-                printf("ERROR: Could not allocate memory for CWAV sample data.\n");
             }
 
             stb_vorbis_close(vorbis);
@@ -244,12 +226,55 @@ static void* convert_to_cwav(u32* size, const std::string& file, bool loop, u32 
             printf("ERROR: Failed to open vorbis file: %d.\n", error);
         }
     } else {
-        printf("ERROR: Audio file magic '%c%c%c%c' unrecognized.\n", magic[0], magic[1], magic[2], magic[3]);
+        // Then let dr_wav try decoding
+        drwav wav;
+        if(drwav_init_file(&wav, file.c_str(), NULL)) {
+            cwav.channels = wav.channels;
+            cwav.sampleRate = wav.sampleRate;
+
+            // We use the audio data directly
+            if (wav.translatedFormatTag == DR_WAVE_FORMAT_PCM &&
+                (wav.bitsPerSample == 8 || wav.bitsPerSample == 16)) {
+                cwav.bitsPerSample = wav.bitsPerSample;
+                cwav.dataSize = wav.totalPCMFrameCount * wav.channels * wav.bitsPerSample / 8;
+                cwav.data = malloc(cwav.dataSize);
+                if(cwav.data != NULL) {
+                    memset(cwav.data, 0, cwav.dataSize);
+                    drwav_read_pcm_frames(&wav, wav.totalPCMFrameCount, cwav.data);
+                    // FIXME: dr_wav only can decode unsigned 8 bit PCM data.
+                    //        vgmstream tells for bcwav it has signed data
+                    /*
+                    if(wav.bitsPerSample == 8) {
+                        printf("WARNING: 8 bit PCM is expected to be unsigned. Converting to signed!\n");
+                        for (size_t i = 0; i < cwav.dataSize; i++) {
+                            ((u8*)cwav.data)[i] += 128;
+                        }
+                    }*/
+                }
+            } else {
+                if(wav.translatedFormatTag == DR_WAVE_FORMAT_ADPCM) {
+                    printf("INFO: ADPCM encoding is currently unsupported and will be converted to 16 bit PCM!\n");
+                } else {
+                    printf("INFO: Unsupported encoding. Converting to 16 bit PCM!\n");
+                }
+                // Simply decode as 16 bit PCM frames
+                cwav.bitsPerSample = 16;
+                cwav.dataSize = wav.totalPCMFrameCount * wav.channels * sizeof(short);
+                cwav.data = malloc(cwav.dataSize);
+                if(cwav.data != NULL) {
+                    memset(cwav.data, 0, cwav.dataSize);
+                    drwav_read_pcm_frames_s16(&wav, wav.totalPCMFrameCount, (short*) cwav.data);
+                }
+            }
+
+            drwav_uninit(&wav);
+        } else {
+            printf("ERROR: Audio file magic '%c%c%c%c' unrecognized or unsupported.\n", magic[0], magic[1], magic[2], magic[3]);
+        }
     }
 
-    fclose(fd);
-
     if(cwav.data == NULL) {
+        printf("ERROR: Could not allocate memory for CWAV sample data.\n");
         return NULL;
     }
 

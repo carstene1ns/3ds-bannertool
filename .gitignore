@@ -1,2 +1,3 @@
-build
+build-release
+build-debug
 output

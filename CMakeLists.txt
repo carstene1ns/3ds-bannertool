@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.18)
+cmake_minimum_required(VERSION 3.28) # Ubuntu 24.04 LTS
 
 project(bannertool
 	VERSION 1.2.2
@@ -60,7 +60,18 @@ target_compile_options(bannertool PRIVATE
 	-Wall
 	-Wno-unused-function
 )
-target_link_libraries(bannertool stb_image stb_vorbis dr_wav)
+target_link_libraries(bannertool PRIVATE
+	stb_image stb_vorbis dr_wav
+)
+if(WIN32 AND NOT MSVC)
+	# link statically
+
+	target_link_options(bannertool PRIVATE
+		-static
+		-static-libgcc
+		-static-libstdc++
+	)
+endif()
 
 # install
 
@@ -114,3 +125,9 @@ add_custom_target(update-libs
 	COMMENT "Updating external libraries from GitHub..."
 	VERBATIM
 )
+
+# show info
+
+message(STATUS "")
+message(STATUS "bannertool ${PROJECT_VERSION} on ${CMAKE_SYSTEM_NAME} ready to build...")
+message(STATUS "")

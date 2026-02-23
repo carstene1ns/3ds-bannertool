@@ -563,15 +563,31 @@ static void cmd_print_info(const std::string& command) {
 static void cmd_print_commands() {
     printf("Available commands:\n");
     cmd_print_info("makebanner");
+    printf("\n");
     cmd_print_info("makesmdh");
+    printf("\n");
     cmd_print_info("makecwav");
+    printf("\n");
     cmd_print_info("lz11");
 }
 
-static void cmd_print_usage(const std::string& executedFrom) {
+static void cmd_print_version() {
     printf("bannertool v%d.%d.%d\n", VERSION_MAJOR, VERSION_MINOR, VERSION_MICRO);
+}
+
+static void cmd_print_usage(const std::string& executedFrom, bool shortCmds) {
+    cmd_print_version();
     printf("Usage: %s <command> <args>\n", executedFrom.c_str());
+    if(shortCmds)
+        printf("Available commands: makebanner makesmdh makecwav lz11\n");
+}
+
+static void cmd_print_help(const std::string& executedFrom) {
+    cmd_print_usage(executedFrom, false);
     cmd_print_commands();
+
+    printf("\n--help - Show this help message\n");
+    printf("--version - Show version information\n");
 }
 
 static void cmd_missing_args(const std::string& command) {
@@ -591,8 +607,18 @@ static void cmd_invalid_command(const std::string& command) {
 
 int cmd_process_command(int argc, char* argv[]) {
     if(argc < 2) {
-        cmd_print_usage(argv[0]);
+        cmd_print_usage(argv[0], true);
         return -1;
+    }
+
+    if(argc == 2 && strcmp(argv[1], "--help") == 0) {
+        cmd_print_help(argv[0]);
+        return 0;
+    }
+
+    if(argc == 2 && strcmp(argv[1], "--version") == 0) {
+        cmd_print_version();
+        return 0;
     }
 
     char* command = argv[1];

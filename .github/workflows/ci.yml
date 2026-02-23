@@ -1,0 +1,143 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  dist:
+    name: Distribution archives
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Generate Archives
+        run: |
+          git archive -o bannertool.tar.gz --prefix=bannertool/ ${GITHUB_SHA}
+          git archive -o bannertool.zip --prefix=bannertool/ ${GITHUB_SHA}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: dist
+          path: bannertool.*
+
+  linux:
+    name: Build (Ubuntu 24.04 LTS x86_64)
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -yqq
+          sudo apt-get install -yqq build-essential cmake ninja-build
+
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Build
+        run: |
+          cmake -B build-release -G Ninja -DCMAKE_BUILD_TYPE=Release .
+          cmake --build build-release
+          ls -l build-release/bannertool
+          build-release/bannertool --version
+
+      - name: Prepare artifact
+        run: |
+          mkdir bannertool-linux
+          cp build-release/bannertool bannertool-linux/
+          cp LICENSE.txt bannertool-linux/
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: bannertool-linux-glibc2.39-x86_64
+          path: bannertool-linux/*
+
+  windows-mingw:
+    name: Build (Windows x86_64, MinGW)
+    runs-on: windows-2022
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - uses: msys2/setup-msys2@v2
+        with:
+          update: true
+          install: |
+            base-devel
+          pacboy: |
+            toolchain:p cmake:p ninja:p
+
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Build
+        run: |
+          cmake -B build-release -G Ninja -DCMAKE_BUILD_TYPE=Release .
+          cmake --build build-release
+          ls -l build-release/bannertool
+          build-release/bannertool.exe --version
+
+      - name: Prepare artifact
+        run: |
+          mkdir bannertool-windows
+          cp build-release/bannertool.exe bannertool-windows/
+          cp LICENSE.txt bannertool-windows/
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: bannertool-windows-mingw-x86_64
+          path: bannertool-windows
+
+  release:
+    name: Create Release
+    needs:
+      - dist
+      - linux
+      - windows-mingw
+    # allow run when some platform jobs failed, but only for tags in main repo
+    if: ${{ !cancelled() && github.ref_type == 'tag' && github.repository_owner == 'carstene1ns' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v7
+
+      - name: Zip artifacts and inspect directory
+        run: |
+          TAG=${{ github.ref_name }}
+          # dist
+          mv dist/bannertool.tar.gz bannertool-$TAG.tar.gz
+          mv dist/bannertool.zip bannertool-$TAG.zip
+          # linux
+          mv bannertool-linux-* bannertool-$TAG-linux
+          zip -r bannertool-$TAG-linux.zip bannertool-$TAG-linux
+          # windows
+          mv bannertool-windows-* bannertool-$TAG-windows
+          zip -r bannertool-$TAG-windows.zip bannertool-$TAG-windows
+          # show
+          tree -aL 2
+
+      - name: Create Release and upload artifacts
+        id: release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            bannertool-*.zip
+            bannertool-*.tar.*
+
+      - name: Display information about release
+        run: |
+          echo "Created/Updated release with URL: ${{ steps.release.outputs.url }}"

@@ -27,7 +27,7 @@ jobs:
           git archive -o bannertool.zip --prefix=bannertool/ ${GITHUB_SHA}
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: dist
           path: bannertool.*
@@ -58,7 +58,7 @@ jobs:
           cp LICENSE.txt bannertool-linux/
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: bannertool-linux-glibc2.39-x86_64
           path: bannertool-linux/*
@@ -95,7 +95,7 @@ jobs:
           cp LICENSE.txt bannertool-windows/
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: bannertool-windows-mingw-x86_64
           path: bannertool-windows

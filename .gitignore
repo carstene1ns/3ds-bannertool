@@ -1,2 +1,11 @@
 /build-*
 /output
+
+# inputs/outputs
+*.bnr
+*.png
+*.smdh
+*.icn
+*.wav
+*.cwav
+*.lz11

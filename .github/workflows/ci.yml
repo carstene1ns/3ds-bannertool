@@ -48,7 +48,7 @@ jobs:
         run: |
           cmake -B build-release -G Ninja -DCMAKE_BUILD_TYPE=Release .
           cmake --build build-release
-          ls -l build-release/bannertool
+          ls -l build-release
           build-release/bannertool --version
 
       - name: Prepare artifact
@@ -61,7 +61,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: bannertool-linux-glibc2.39-x86_64
-          path: bannertool-linux/*
+          path: bannertool-linux
 
   windows-mingw:
     name: Build (Windows x86_64, MinGW)
@@ -85,7 +85,7 @@ jobs:
         run: |
           cmake -B build-release -G Ninja -DCMAKE_BUILD_TYPE=Release .
           cmake --build build-release
-          ls -l build-release/bannertool
+          ls -l build-release
           build-release/bannertool.exe --version
 
       - name: Prepare artifact
@@ -119,14 +119,17 @@ jobs:
         run: |
           TAG=${{ github.ref_name }}
           # dist
-          mv dist/bannertool.tar.gz bannertool-$TAG.tar.gz
-          mv dist/bannertool.zip bannertool-$TAG.zip
+          tar xf dist/bannertool.tar.gz
+          mv bannertool bannertool-$TAG
+          tar czf bannertool-$TAG.tar.gz bannertool-$TAG
+          zip -rq bannertool-$TAG.zip bannertool-$TAG
+          rm -rf bannertool-$TAG
           # linux
           mv bannertool-linux-* bannertool-$TAG-linux
-          zip -r bannertool-$TAG-linux.zip bannertool-$TAG-linux
+          tar czf bannertool-$TAG-linux.tar.gz bannertool-$TAG-linux
           # windows
           mv bannertool-windows-* bannertool-$TAG-windows
-          zip -r bannertool-$TAG-windows.zip bannertool-$TAG-windows
+          zip -rq bannertool-$TAG-windows.zip bannertool-$TAG-windows
           # show
           tree -aL 2
 

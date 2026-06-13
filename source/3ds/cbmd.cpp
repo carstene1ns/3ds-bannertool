@@ -1,85 +1,62 @@
-#include "cbmd.h"
 
+#include <cstdlib>
+#include <cstring>
+#include <cstdio>
+
+#include "cbmd.h"
 #include "lz11.h"
 
-#include <stdlib.h>
-#include <string.h>
+static DatVec cbmd_build_data(CBMD &cbmd, bool bnr) {
+	CBMDHeader header;
+	size_t outputSize = sizeof(CBMDHeader);
 
-#define CBMD_MAGIC "CBMD"
+	memset(&header, 0, outputSize);
+	memcpy(header.magic, CBMD_MAGIC, sizeof(header.magic));
 
-typedef struct {
-    char magic[4];
-    u32 zero;
-    u32 cgfxOffsets[CBMD_NUM_CGFXS];
-    u8 padding[0x44];
-    u32 cwavOffset;
-} CBMDHeader;
+	DatVec compressedCGFXs[14];
+	for(int i = 0; i < CBMD_NUM_CGFXS; i++) {
+		if(!cbmd.cgfxs[i].empty()) {
+			header.cgfxOffsets[i] = outputSize;
 
-static void* cbmd_build_data(u32* size, CBMD cbmd, bool bnr) {
-    CBMDHeader header;
-    memset(&header, 0, sizeof(header));
+			compressedCGFXs[i] = lz11_compress(cbmd.cgfxs[i]);
+			outputSize += compressedCGFXs[i].size();
+		}
+	}
 
-    memcpy(header.magic, CBMD_MAGIC, sizeof(header.magic));
+	// align size
+	if(bnr) {
+		outputSize = (outputSize + 0xF) & ~0xF;
+	}
 
-    u32 outputSize = sizeof(CBMDHeader);
+	if(!cbmd.cwav.empty()) {
+		header.cwavOffset = outputSize;
+		outputSize += cbmd.cwav.size();
+	}
 
-    void* compressedCGFXs[14] = {NULL};
-    u32 compressedCGFXSizes[14] = {0};
-    for(u32 i = 0; i < CBMD_NUM_CGFXS; i++) {
-        if(cbmd.cgfxs[i] != NULL) {
-            header.cgfxOffsets[i] = outputSize;
+	DatVec output(outputSize);
+	/*if(!output) {
+		printf("ERROR: Could not allocate memory for CBMD data.\n");
+		return DatVec();
+	}*/
+	memcpy(output.data(), &header, sizeof(header));
 
-            compressedCGFXs[i] = lz11_compress(&compressedCGFXSizes[i], cbmd.cgfxs[i], cbmd.cgfxSizes[i]);
-            outputSize += compressedCGFXSizes[i];
-        }
-    }
+	for(int i = 0; i < CBMD_NUM_CGFXS; i++) {
+		if(!compressedCGFXs[i].empty()) {
+			memcpy(&output[header.cgfxOffsets[i]], compressedCGFXs[i].data(), compressedCGFXs[i].size());
+		}
+	}
 
-    if(bnr) {
-        outputSize = (outputSize + 0xF) & ~0xF;
-    }
+	if(!cbmd.cwav.empty()) {
+		memcpy(&output[header.cwavOffset], cbmd.cwav.data(), cbmd.cwav.size());
+	}
 
-    if(cbmd.cwav != NULL) {
-        header.cwavOffset = outputSize;
-
-        outputSize += cbmd.cwavSize;
-    }
-
-    void* output = calloc(outputSize, sizeof(u8));
-    if(output == NULL) {
-        for(u32 i = 0; i < CBMD_NUM_CGFXS; i++) {
-            if(cbmd.cgfxs[i] != NULL) {
-                free(compressedCGFXs[i]);
-            }
-        }
-
-        printf("ERROR: Could not allocate memory for CBMD data.\n");
-        return NULL;
-    }
-
-    memcpy(output, &header, sizeof(header));
-
-    for(u32 i = 0; i < CBMD_NUM_CGFXS; i++) {
-        if(compressedCGFXs[i] != NULL) {
-            memcpy(&((u8*) output)[header.cgfxOffsets[i]], compressedCGFXs[i], compressedCGFXSizes[i]);
-            free(compressedCGFXs[i]);
-        }
-    }
-
-    if(cbmd.cwav != NULL) {
-        memcpy(&((u8*) output)[header.cwavOffset], cbmd.cwav, cbmd.cwavSize);
-    }
-
-    if(size != NULL) {
-        *size = outputSize;
-    }
-
-    return output;
+	return output;
 }
 
-void* cbmd_build(u32* size, CBMD cbmd) {
-    return cbmd_build_data(size, cbmd, false);
+DatVec cbmd_build(CBMD &cbmd) {
+	return cbmd_build_data(cbmd, false);
 }
 
-void* bnr_build(u32* size, CBMD cbmd) {
-    return cbmd_build_data(size, cbmd, true);
+DatVec bnr_build(CBMD &cbmd) {
+	return cbmd_build_data(cbmd, true);
 }

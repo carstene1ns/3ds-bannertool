@@ -24,5 +24,8 @@ Originally created and maintained by Steveice10.
  - changed build system to CMake
  - updated libraries for ogg vorbis and png file loading
  - added library for wave file loading for more supported formats
+ - cleaned up and restructured code
+ - no more C-style memory management
+ - better error logging
 
 [Releases]: https://github.com/carstene1ns/3ds-bannertool/releases

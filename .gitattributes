@@ -1,0 +1,17 @@
+*         text=auto
+*.cpp     text
+*.hpp     text
+*.h       text linguist-language=C++
+*.md      text
+*.cmake   text
+
+source/pc/utf8/* -diff linguist-vendored
+source/pc/utf8.h -diff linguist-vendored
+source/pc/dr_wav.h -diff linguist-vendored
+source/pc/stb_image.h -diff linguist-vendored
+source/pc/stb_vorbis.cpp -diff linguist-vendored
+
+.gitattributes export-ignore
+.gitignore export-ignore
+/.github/ export-ignore
+.editorconfig export-ignore

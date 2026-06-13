@@ -1,0 +1,15 @@
+--suffix=none
+--style=attach
+--indent=tab=4
+--pad-oper
+--pad-comma
+--unpad-paren
+--max-code-length=120
+--break-after-logical
+--attach-closing-while
+--align-pointer=type
+--align-reference=name
+--indent-classes
+--indent-preproc-block
+--indent-switches
+--min-conditional-indent=0
